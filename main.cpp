@@ -18,11 +18,8 @@ const int8_t FOVX = 104;   // 60deg = 1.04 rad
 const int8_t FOVY = 79;    // 45deg = 0.785 rad
 */
 
-#define FOVX 104
-#define FOVY 79
-
-
-
+#define FOVX 1.04
+#define FOVY 0.785
 
 void plot_edge_histogram(int32_t *edge_histogram);
 
@@ -34,20 +31,40 @@ int main(int, char **)
   struct edgeflow_results_t edgeflow_results;
   int32_t edge_histogram_x[IMAGE_WIDTH];
   //initialize for edgeflow
-  edgeflow_init(&edgeflow_parameters, &edgeflow_results, FOVX, FOVY, 128, 96, 0);
+  edgeflow_init(&edgeflow_parameters, &edgeflow_results, FOVX, FOVY, IMAGE_WIDTH, IMAGE_HEIGHT, 0);
 
   char name[10];
   int i = 1;
 
   //structures for images
-  Rect ROI_left(0, 0, 128, 94);
-  Rect ROI_right(128, 0, 128, 94);
+  Rect ROI_left(0, 0, IMAGE_WIDTH, IMAGE_HEIGHT-2);
+  Rect ROI_right(IMAGE_WIDTH, 0, IMAGE_WIDTH, IMAGE_HEIGHT-2);
   Mat image_left, image_left_gray;
   Mat image_right, image_right_gray;
   Mat image;
-  uint8_t image_buffer[128 * 96 * 2];
-  memset(image_buffer, 0, 128 * 96 * 2 * sizeof(uint8_t));
+  uint8_t image_buffer[IMAGE_WIDTH * IMAGE_HEIGHT * 2];
+  memset(image_buffer, 0, IMAGE_WIDTH * IMAGE_HEIGHT * 2 * sizeof(uint8_t));
 
+  // open rate file
+  ifstream angles("stereoboard_database/Track3/angles.log");
+  std::string line_str; 
+  
+  int16_t stereocam_data[18];
+  stereocam_data[2] = 0;  // derotation
+  stereocam_data[3] = 1;  // adaptive_horizon
+  stereocam_data[4] = 0;  // window_size
+  stereocam_data[5] = 0;  // disparity_range
+  stereocam_data[6] = 0;  // snap_shot
+  stereocam_data[7] = 0;  // kalman_on
+  stereocam_data[8] = 0;  // autopilot_mode
+  
+  uint8_t stereo_len;
+  if (angles.is_open()){
+    stereo_len = 18;
+  } else {
+    stereo_len = 0;
+  }
+  
   // open cvs file
   ofstream output;
   // open video capture
@@ -86,7 +103,7 @@ int main(int, char **)
     for (y = 0; y < image.rows; y++) {
       for (x = 0; x < image.cols; x++)
       {
-        idx = 2 * (128 * y + x);
+        idx = 2 * (IMAGE_WIDTH * y + x);
         //TODO: this should be the right order?
         image_buffer[idx + 1] = (uint8_t)image_left_gray.at<uchar>(y, x);
         image_buffer[idx] = (uint8_t)image_right_gray.at<uchar>(y, x);
@@ -97,12 +114,21 @@ int main(int, char **)
     cv::imshow("video", image_left_gray);
     cv::waitKey(1);
 
+    if (std::getline(angles, line_str))
+    {
+      char myString[256];
+      strcpy(myString, line_str.c_str());
+      char *p = strtok(myString, " ");
+
+      stereocam_data[0] = (int16_t)(std::stof(p)*256);  // phi
+      p = strtok(NULL, " ");
+      stereocam_data[1] = (int16_t)(std::stof(p)*256);  // theta
+    }
     //dummyvalues
-    int16_t *stereocam_data;
-    uint8_t *edgeflowArray;
+    //uint8_t *edgeflowArray;
 
     //calculate edgeflow
-    edgeflow_total(edgeflowArray, stereocam_data, 0, image_buffer,
+    edgeflow_total(stereocam_data, stereo_len, image_buffer,
                    &edgeflow_parameters, &edgeflow_results);
 
     /*    plot_edge_histogram(edgeflow_results.displacement.stereo);
@@ -126,9 +152,9 @@ int main(int, char **)
 //TODO: find a nice plotting library for this
 void plot_edge_histogram(int32_t *edge_histogram)
 {
-  int size = 128;
+  int size = IMAGE_WIDTH;
 
-  cv::Mat edge_histogram_plot = cv::Mat::zeros(128, size, CV_8UC3);
+  cv::Mat edge_histogram_plot = cv::Mat::zeros(IMAGE_WIDTH, size, CV_8UC3);
   cv::Point line1, line2;
   cv::Point line1_prev, line2_prev;
   cv::Point line1_disp, line2_disp;
