@@ -7,7 +7,7 @@
 #include <fstream>
 #include <iostream>
 //Include header file of stereoboard code
-#include "../stereoboard/edgeflow.h"
+#include "../../stereoboard/edgeflow.h"
 #include "gnuplot_i.hpp"
 
 using namespace std;
@@ -19,10 +19,8 @@ const int8_t FOVX = 104;   // 60deg = 1.04 rad
 const int8_t FOVY = 79;    // 45deg = 0.785 rad
  */
 
-#define FOVX 104
-#define FOVY 79
-
-
+#define FOVX 1.001819   // 57.4deg = 1.001819 rad
+#define FOVY 0.776672    // 44.5deg = 0.776672 rad
 
 
 void plot_edge_histogram(int32_t *edge_histogram);
@@ -47,7 +45,7 @@ int main(int argc, const char **argv)
 	int i = 1;
 
 	//structures for images
-	Rect ROI_right(0, 0, 128, 94); //Note that in the database, image left and right is reverted!
+	Rect ROI_right(0, 0, 128, 94); //Note that in the database, image left and right is reversed!
 	Rect ROI_left(128, 0, 128, 94);
 	Mat image_left, image_left_gray;
 	Mat image_right, image_right_gray;
@@ -93,46 +91,66 @@ int main(int argc, const char **argv)
 
 		// Put image values in array, just like in the stereoboard
 		int x, y, idx,idx2;
-		for (y = 0; y < image.rows; y++) {
-			for (x = 0; x < image.cols; x++)
+		for (y = 0; y < image_left_gray.rows; y++) {
+			for (x = 0; x < image_left_gray.cols; x++)
 			{
-				idx = 2 * (128 * y + x);
-				idx2 =  (128 * y + x);
+				idx = 2 * image_left_gray.cols * y + x;
+				idx2 = image_left_gray.cols * y + x;
 
-				//TODO: this should be the right order?
 				image_buffer_left[idx2] = (uint8_t)image_left_gray.at<uchar>(y, x);
 				image_buffer_right[idx2] = (uint8_t)image_right_gray.at<uchar>(y, x);
 				image_buffer[idx] = (uint8_t)image_left_gray.at<uchar>(y, x);
-				image_buffer[idx+1] = (uint8_t)image_right_gray.at<uchar>(y, x);
+				image_buffer[idx + image_left_gray.cols] = (uint8_t)image_right_gray.at<uchar>(y, x);
 			}
 		}
+
+    namedWindow( "Display window", WINDOW_AUTOSIZE );// Create a window for display.
+    imshow( "Display window", image );                   // Show our image inside it.
+
+    namedWindow( "Display window1", WINDOW_AUTOSIZE );// Create a window for display.
+    imshow( "Display window", image_left_gray );                   // Show our image inside it.
+
+    namedWindow( "Display window2", WINDOW_AUTOSIZE );// Create a window for display.
+    imshow( "Display window", image_right_gray );                   // Show our image inside it.
 
 		//dummyvalues
 		int16_t *stereocam_data;
 		uint8_t *edgeflowArray;
 
 		//calculate edgeflow
-		edgeflow_total(edgeflowArray, stereocam_data, 0, image_buffer,
-				&edgeflow_parameters, &edgeflow_results);
+		edgeflow_total(stereocam_data, 0, image_buffer, &edgeflow_parameters, &edgeflow_results);
 		std::vector<double> X ;
 		std::vector<double> Y1, Y2, Y3, Y4;
+
+		double grad, y_int;
+    grad = edgeflow_results.vel_z_pixelwise / (double)edgeflow_results.hz_x;
+    y_int = edgeflow_results.vel_x_pixelwise * 128. / ((double)edgeflow_results.hz_x * FOVX) - (grad * 128 / 2);
+
+    double global_grad = edgeflow_results.edge_flow.div_x;
+    double global_y_int = edgeflow_results.edge_flow.flow_x - global_grad * 128 / 2;
+
+    printf("%d %f %d %f\n", edgeflow_results.vel_z_pixelwise, grad, edgeflow_results.vel_x_pixelwise, y_int);
+
+    printf("%d %d\n", edgeflow_results.edge_flow.flow_x, edgeflow_results.edge_flow.div_x);
+
 		for(x=0;x<128;x++)
 		{
 			X.push_back((double)x);
 
-			Y1.push_back((double)edgeflow_results.velocity_per_column[x]);
-			Y2.push_back((double)(edgeflow_results.vel_x_pixelwise + edgeflow_results.vel_z_pixelwise * (x-64) ));
-			Y3.push_back((double)edgeflow_results.stereo_distance_per_column[x]/100);
-			Y4.push_back((double)edgeflow_results.displacement.x[x]);
+			Y1.push_back((double)edgeflow_results.velocity_per_column[x]/256);
+			Y2.push_back((double)(y_int + grad * (x-64) ));
+
+			Y3.push_back((double)edgeflow_results.displacement.x[x]);
+			Y4.push_back((double)(global_y_int + global_grad * (x-64) ));
 		}
 
 		g1.set_grid();
 		g2.set_grid();
 
-		g1.set_style("lines").plot_xy(X,Y1,"displacement flow");
-		g1.set_style("lines").plot_xy(X,Y2,"displacement stereo");
-		g2.set_style("lines").plot_xy(X,Y3,"velocity_per_column");
-		g2.set_style("lines").plot_xy(X,Y4,"velocity_per_column");
+		g1.set_style("lines").plot_xy(X,Y1,"velocity_per_column");
+		g1.set_style("lines").plot_xy(X,Y2,"Flow fit");
+		g2.set_style("lines").plot_xy(X,Y3,"pixel displacement per column");
+		g2.set_style("lines").plot_xy(X,Y4,"Flow fit");
 		getchar();
 
 		g1.reset_plot();

@@ -7,8 +7,8 @@
 CC            = gcc
 CXX           = g++ 
 DEFINES	      = -DCOMPILE_ON_LINUX
-CFLAGS        = -pipe -g -Wall -W $(DEFINES) $(shell pkg-config --cflags opencv)
-CXXFLAGS      = -pipe -g -Wall -W $(DEFINES) -MMD -std=c++11 
+CFLAGS        = -pipe -g -Wall -W $(DEFINES) $(shell pkg-config --cflags opencv) -fpermissive
+CXXFLAGS      = -pipe -g -Wall -W $(DEFINES) -MMD -std=c++11 -fpermissive
 CXXFLAGS      += $(shell pkg-config --cflags opencv)
 LINK          = g++
 LFLAGS        = $(shell pkg-config --libs opencv)
@@ -24,7 +24,7 @@ OBJECTS_DIR   = ./
 TARGET  = EL
 
 SOURCES =   main.cpp \
-            ../stereoboard/edgeflow.c
+            ../../stereoboard/edgeflow.c
 
 $(info $(SOURCES))
 
