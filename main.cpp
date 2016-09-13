@@ -31,7 +31,7 @@ int main(int argc, const char **argv)
 	// initialize structures for plotting
 	Gnuplot g1("lines");
 	Gnuplot g2("lines");
-	Gnuplot g3;
+	Gnuplot g3("lines");
 	Gnuplot g4;
 
 	//parameters for edgeflow
@@ -39,7 +39,7 @@ int main(int argc, const char **argv)
 	struct edgeflow_results_t edgeflow_results;
 	int32_t edge_histogram_x[IMAGE_WIDTH];
 	//initialize for edgeflow
-	edgeflow_init(&edgeflow_parameters, &edgeflow_results, FOVX, FOVY, 128, 96, 0);
+	edgeflow_init(&edgeflow_parameters, &edgeflow_results, FOVX, FOVY, 128, 94, 0);
 
 	char name[10];
 	int i = 1;
@@ -47,20 +47,19 @@ int main(int argc, const char **argv)
 	//structures for images
 	Rect ROI_right(0, 0, 128, 94); //Note that in the database, image left and right is reversed!
 	Rect ROI_left(128, 0, 128, 94);
-	Mat image_left, image_left_gray;
-	Mat image_right, image_right_gray;
+	Mat image_left_gray;
+	Mat image_right_gray;
 	Mat image;
-	uint8_t image_buffer[128 * 96 * 2];
-	uint8_t image_buffer_left[128 * 96 ];
-	uint8_t image_buffer_right[128 * 96 ];
-
-	memset(image_buffer, 0, 128 * 96 * 2 * sizeof(uint8_t));
+	uint8_t image_buffer[128 * 94 * 2];
+	uint8_t image_buffer_left[128 * 94 ];
+	uint8_t image_buffer_right[128 * 94 ];
 
 	// open cvs file
 	ofstream output;
 	// open video capture
-	VideoCapture cap;
-	cap.open("stereoboard_database/Take16/%1d.bmp");
+	VideoCapture cap("stereoboard_database/Take16/%d.bmp");
+	if (!cap.isOpened()) return -1;
+
 	output.open("stereoboard_database/Take16/result.csv");
 	edgeflow_parameters.stereo_shift = -5; // calibration data of that file
 
@@ -70,20 +69,22 @@ int main(int argc, const char **argv)
 
 	//start loop while images are read
 	int counter = 0;
-	while (cap.isOpened()) {
-
+	for(;;) {
 		counter++;
-		cap.read(image);
+		cap >> image;
 
 		if (image.empty()) {
 			break;
 		}
+
+		//namedWindow( "image", WINDOW_AUTOSIZE );// Create a window for display.
+    imshow( "image", image );                   // Show our image inside it.
+    //getchar();
+
 		// Crop out the seperate left and right images
 		if (image.channels() == 3) {
-			image_left = image(ROI_left);
-			image_right = image(ROI_right);
-			cvtColor(image_left, image_left_gray, COLOR_BGR2GRAY);
-			cvtColor(image_right, image_right_gray, COLOR_BGR2GRAY);
+			cvtColor(image(ROI_left), image_left_gray, COLOR_BGR2GRAY);
+			cvtColor(image(ROI_right), image_right_gray, COLOR_BGR2GRAY);
 		} else {
 			image_left_gray = image(ROI_left);
 			image_right_gray = image(ROI_right);
@@ -104,14 +105,6 @@ int main(int argc, const char **argv)
 			}
 		}
 
-    namedWindow( "Display window", WINDOW_AUTOSIZE );// Create a window for display.
-    imshow( "Display window", image );                   // Show our image inside it.
-
-    namedWindow( "Display window1", WINDOW_AUTOSIZE );// Create a window for display.
-    imshow( "Display window", image_left_gray );                   // Show our image inside it.
-
-    namedWindow( "Display window2", WINDOW_AUTOSIZE );// Create a window for display.
-    imshow( "Display window", image_right_gray );                   // Show our image inside it.
 
 		//dummyvalues
 		int16_t *stereocam_data;
@@ -120,35 +113,47 @@ int main(int argc, const char **argv)
 		//calculate edgeflow
 		edgeflow_total(stereocam_data, 0, image_buffer, &edgeflow_parameters, &edgeflow_results);
 		std::vector<double> X ;
-		std::vector<double> Y1, Y2, Y3, Y4;
+		std::vector<double> Y1, Y2, Y3, Y4, Y5;
 
 		double grad, y_int;
-    grad = edgeflow_results.vel_z_pixelwise / (double)edgeflow_results.hz_x;
-    y_int = edgeflow_results.vel_x_pixelwise * 128. / ((double)edgeflow_results.hz_x * FOVX) - (grad * 128 / 2);
+    grad = (double)edgeflow_results.vel_z_pixelwise / (double)edgeflow_results.hz_x;
+    y_int = edgeflow_results.vel_x_pixelwise * 128. / ((double)edgeflow_results.hz_x * FOVX);
 
-    double global_grad = edgeflow_results.edge_flow.div_x;
-    double global_y_int = edgeflow_results.edge_flow.flow_x - global_grad * 128 / 2;
+    double global_grad = (double)edgeflow_results.edge_flow.div_x * edgeflow_results.avg_dist / 256.;
+    double global_y_int = (double)edgeflow_results.edge_flow.flow_x * edgeflow_results.avg_dist / 256.;
 
+    printf("frame: %d\n", counter);
     printf("%d %f %d %f\n", edgeflow_results.vel_z_pixelwise, grad, edgeflow_results.vel_x_pixelwise, y_int);
 
     printf("%d %d\n", edgeflow_results.edge_flow.flow_x, edgeflow_results.edge_flow.div_x);
 
-		for(x=0;x<128;x++)
+    double error = 0, global_error = 0;
+		for(x=0; x < 128; x++)
 		{
 			X.push_back((double)x);
 
-			Y1.push_back((double)edgeflow_results.velocity_per_column[x]/256);
+			Y1.push_back((double)edgeflow_results.velocity_per_column[x]);
 			Y2.push_back((double)(y_int + grad * (x-64) ));
+			Y5.push_back(256*(double)!edgeflow_results.faulty_distance[x]);
 
-			Y3.push_back((double)edgeflow_results.displacement.x[x]);
+			if(!edgeflow_results.faulty_distance[x])
+			  error += fabs(Y1[x] - Y2[x]);
+
+			Y3.push_back((double)edgeflow_results.displacement.x[x] * edgeflow_results.avg_dist);
 			Y4.push_back((double)(global_y_int + global_grad * (x-64) ));
+			if(x > 23 && x < 128 - 23)
+			  global_error += fabs(Y3[x] - Y4[x]);
 		}
+
+		printf("pixelwise plot error: %f, global plot error: %f\n", error, global_error);
 
 		g1.set_grid();
 		g2.set_grid();
 
 		g1.set_style("lines").plot_xy(X,Y1,"velocity_per_column");
 		g1.set_style("lines").plot_xy(X,Y2,"Flow fit");
+		g1.set_style("lines").plot_xy(X,Y5,"Good Distance");
+
 		g2.set_style("lines").plot_xy(X,Y3,"pixel displacement per column");
 		g2.set_style("lines").plot_xy(X,Y4,"Flow fit");
 		getchar();
@@ -156,12 +161,8 @@ int main(int argc, const char **argv)
 		g1.reset_plot();
 		g2.reset_plot();
 
-		if( counter >40)//TODO: get rid of those irritating warnings...
-		{
-			g1.remove_tmpfiles();
-			g2.remove_tmpfiles();
-		}
-
+		g1.remove_tmpfiles();
+		g2.remove_tmpfiles();
 
 		//Save data on output.cvs
 		//TODO: also enter groundtruth data
