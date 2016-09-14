@@ -1,4 +1,4 @@
-function [cam_Vx_frame, cam_Vz_frame, yaw_frame, t_frame] = getOptiTrack(track,database_loc)
+function [cam_Vx_frame, cam_Vz_frame, yaw_frame, t_frame] = getOptiTrack(database_loc)
 
 format shortg
 % keyboard
@@ -86,19 +86,26 @@ yaw_frame = yaw(index_frame);
  
 yaw_rate_frame = [diff(yaw_frame);0];
  
+t = t - t(1);
+
 figure(2)
 subplot(3,1,1)
-plot(cam_Vx_frame(10:end)); ylim([-1,1])
+plot(t(index_frame),cam_Vx_frame); ylim([-1,1])
+title('vx');
 subplot(3,1,2)
-plot(cam_Vy_frame(10:end)); ylim([-1,1])
+plot(t(index_frame),cam_Vy_frame); ylim([-1,1])
+title('vy');
 subplot(3,1,3)
-plot(cam_Vz_frame(10:end)); ylim([-1,1])
+plot(t(index_frame),cam_Vz_frame); ylim([-1,1])
+title('vz');
 
 figure(3)
 subplot(2,1,1)
 plot(smooth(yaw_rate(index_frame))); ylim([-10,10])
+title('yaw rate');
 subplot(2,1,2)
 plot(yaw(index_frame)); ylim([0,10])
+title('yaw angle');
 
 time = t_frame;
 

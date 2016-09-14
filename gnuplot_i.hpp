@@ -40,6 +40,7 @@
 #include <cstdio>     
 #include <cstdlib>              // for getenv()
 #include <list>                 // for std::list
+#include <errno.h>
 
 
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__TOS_WIN__) 
@@ -961,7 +962,7 @@ Gnuplot::~Gnuplot()
 //
 Gnuplot& Gnuplot::reset_plot()
 {
-//  remove_tmpfiles();
+    remove_tmpfiles();
 
     nplots = 0;
 
@@ -1922,7 +1923,7 @@ std::string Gnuplot::create_tmpfile(std::ofstream &tmp)
 #endif
     {
         std::ostringstream except;
-        except << "Cannot create temporary file \"" << name << "\"";
+        except << "Cannot create temporary file \"" << name << "\""<<" error number "<<errno;
         throw GnuplotException(except.str());
         return "";
     }
