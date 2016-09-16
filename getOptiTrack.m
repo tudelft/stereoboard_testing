@@ -63,15 +63,16 @@ Vx = [diff(X)./diff(t);0];
 Vy = [diff(Y)./diff(t);0];
 Vz = [diff(Z)./diff(t);0];
 yaw_rate = [diff(yaw)./diff(t);0];
+pitch_rate = [diff(pitch)./diff(t);0];
 
-cam_Vx = Vx.*cos(yaw*pi/180)-Vz.*sin(yaw*pi/180);
+cam_Vx = -Vx.*cos(yaw*pi/180)+Vz.*sin(yaw*pi/180);
 cam_Vz = Vz.*cos(yaw*pi/180)+Vx.*sin(yaw*pi/180);
 
 cam_Vx_frame = cam_Vx(index_frame); % lateral velocity (positive ->)
 cam_Vy_frame = Vy(index_frame); % down positive
 cam_Vz_frame = cam_Vz(index_frame); % longitudinal velocity (positive is forward)
 
-cam_X = X.*cos(yaw*pi/180)-Z.*sin(yaw*pi/180);
+cam_X = -X.*cos(yaw*pi/180)+Z.*sin(yaw*pi/180);
 cam_Z = Z.*cos(yaw*pi/180)+X.*sin(yaw*pi/180);
 
 % cam_X_obst = X_obst.*cos(yaw*pi/180)-Z_obst.*sin(yaw*pi/180);
@@ -101,11 +102,19 @@ title('vz');
 
 figure(3)
 subplot(2,1,1)
-plot(smooth(yaw_rate(index_frame))); ylim([-10,10])
+plot(t(index_frame),smooth(yaw_rate(index_frame))); ylim([-10,10])
 title('yaw rate');
 subplot(2,1,2)
-plot(yaw(index_frame)); ylim([0,10])
+plot(t(index_frame),yaw(index_frame));% ylim([0,10])
 title('yaw angle');
+
+figure(4)
+subplot(2,1,1)
+plot(t(index_frame),smooth(pitch_rate(index_frame))); ylim([-10,10])
+title('pitch rate');
+subplot(2,1,2)
+plot(t(index_frame),pitch(index_frame));% ylim([0,10])
+title('pitch angle');
 
 time = t_frame;
 

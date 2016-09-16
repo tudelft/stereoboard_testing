@@ -3,8 +3,8 @@ clear all
 clc
 
 % load camera data
-% cam_file = fopen('stereoboard_database/Take16/result.csv');
-cam_file = fopen('stereoboard_database/Track3/result.csv');
+cam_file = fopen('stereoboard_database/Take16/result.csv');
+% cam_file = fopen('stereoboard_database/Track3/result.csv');
 cam = textscan(cam_file,'%f,%f,%f,%f,%f,%f,%f,%f,%f');
 fclose(cam_file);
 
@@ -33,13 +33,14 @@ time = 0:1/8:numel(x_pixelwise_kirk)/8 - 1/8;
 % subplot(3,1,3)
 % plot([z_pixelwise_kirk, z_global_kirk]); ylim([-1,1])
 
-figure(1)
+figure(6)
 subplot(3,1,1)
 plot(time,[x_pixelwise_kirk, x_global_kirk]);% ylim([-1,1])
 subplot(3,1,2)
 plot(time, y_global_kirk);% ylim([-1,1])
 subplot(3,1,3)
-plot(time,[z_pixelwise_kirk, z_global_kirk]); %ylim([-1,1])
+plot(time,[z_pixelwise_kirk, z_global_kirk]); ylim([-1,1])
 
 %%
-[cam_Vx_frame, cam_Vz_frame, yaw_frame, t_frame] = getOptiTrack('/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/Track3');
+% [cam_Vx_frame, cam_Vz_frame, yaw_frame, t_frame] = getOptiTrack('/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/Track3');
+[cam_Vx_frame, cam_Vz_frame, yaw_frame, t_frame] = getOptiTrack('/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/Take16');
