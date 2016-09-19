@@ -62,7 +62,8 @@ $(TARGET):  $(OBJECTS)
 	$(LINK) $(LIBS) -o $(TARGET) $(OBJECTS) $(OBJCOMP) $(LFLAGS)
 	{ test -n "$(DESTDIR)" && DESTDIR="$(DESTDIR)" || DESTDIR=.; } && test $$(gdb --version | sed -e 's,[^0-9]\+\([0-9]\)\.\([0-9]\).*,\1\2,;q') -gt 72 && gdb --nx --batch --quiet -ex 'set confirm off' -ex "save gdb-index $$DESTDIR" -ex quit '$(TARGET)' && test -f $(TARGET).gdb-index && objcopy --add-section '.gdb_index=$(TARGET).gdb-index' --set-section-flags '.gdb_index=readonly' '$(TARGET)' '$(TARGET)' && rm -f $(TARGET).gdb-index || true
 
-clean:
+clean: 
+	$(MAKE) -C ../../stereoboard clean
 	$(DEL_FILE) $(wildcard *.o) $(wildcard *.d) $(TARGET)
 
 ####### Compile

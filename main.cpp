@@ -84,15 +84,6 @@ int main(int argc, const char **argv)
 
 		namedWindow( "image", WINDOW_AUTOSIZE );// Create a window for display.
     imshow( "image", image );                   // Show our image inside it.
-
-    sprintf(prev_image_file, "stereoboard_database/Track3/%d.bmp", counter - edgeflow_results.previous_frame_offset[0]);
-    prev_image = imread(prev_image_file, CV_LOAD_IMAGE_COLOR);   // Read the file
-
-    if (counter - edgeflow_results.previous_frame_offset[0] > 0){
-      printf("count %d, previous image %d\n", counter, counter - edgeflow_results.previous_frame_offset[0]);
-      namedWindow( "previous image", WINDOW_AUTOSIZE );// Create a window for display.
-      imshow( "previous image", prev_image );                   // Show our image inside it
-    }
     waitKey(1);
 
 		// Crop out the seperate left and right images
@@ -133,7 +124,7 @@ int main(int argc, const char **argv)
 		//calculate edgeflow
 		edgeflow_total(stereocam_data, 0, image_buffer, &edgeflow_parameters, &edgeflow_results);
 		std::vector<double> X, Y;
-		std::vector<double> Y1, Y2, Y3, Y4, Y5, Y6, Y7, Y8, Y9, prev_hist, curr_hist, right_hist, dist_hist, temp;
+		std::vector<double> Y1, Y2, Y3, Y4, Y5, Y6, Y7, Y8, Y9, prev_hist, curr_hist, right_hist, dist_hist;
 
 		double grad, y_int;
     grad = edgeflow_results.edge_flow.scaled_div;
@@ -156,7 +147,9 @@ int main(int argc, const char **argv)
 
 			Y1.push_back((double)edgeflow_results.velocity_per_column[x]);
 			//Y7.push_back((double)edgeflow_results.velocity_per_column[x]*edgeflow_results.displacement.stereo[x]*100.);
-			Y2.push_back((double)(y_int + grad * x));
+			Y2.push_back((double)(y_int + grad * (x-64)));
+			Y5.push_back((double)(edgeflow_results.edge_flow.scaled_flow_x1 + edgeflow_results.edge_flow.scaled_div1 * x));
+
 			Y6.push_back((double)edgeflow_results.hist_match_quality_x[x]);
 
 			Y3.push_back((double)edgeflow_results.displacement.x[x] * 100.);
@@ -167,9 +160,6 @@ int main(int argc, const char **argv)
 			right_hist.push_back(edgeflow_results.edge_hist_x_right[x]);
 
 			dist_hist.push_back(edgeflow_results.stereo_distance_per_column[x]/100.);
-
-			Y5.push_back((double)(edgeflow_results.edge_flow.scaled_flow_x1 + edgeflow_results.edge_flow.scaled_div1 * x ));
-			temp.push_back((double)(edgeflow_results.edge_flow.scaled_flow_x2 + edgeflow_results.edge_flow.scaled_div2 * x ));
 		}
 
 		for(y=0; y < 96; y++)
@@ -189,7 +179,6 @@ int main(int argc, const char **argv)
 		g1.plot_xy(X, Y1, "velocity_per_column");
 		g1.plot_xy(X, Y2, "weighted flow fit");
 		g1.plot_xy(X, Y5, "standard flow fit");
-		g1.plot_xy(X, temp, "old flow fit");
 
 		g2.plot_xy(X, Y3, "X pixel displacement per column");
 		g2.plot_xy(X, Y4, "Flow fit");
