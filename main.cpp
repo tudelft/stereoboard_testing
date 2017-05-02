@@ -33,12 +33,8 @@ int main(int argc, const char **argv)
   Gnuplot g4("lines");
   Gnuplot g5("lines");
 
-	//parameters for edgeflow
-	struct edgeflow_parameters_t edgeflow_parameters;
-	struct edgeflow_results_t edgeflow_results;
-
 	//initialize for edgeflow
-	edgeflow_init(&edgeflow_parameters, &edgeflow_results, FOVX, FOVY, 128, 94, 0);
+	edgeflow_init(128, 94, 0);
 
 	char name[10];
 	int i = 1;
@@ -60,12 +56,12 @@ int main(int argc, const char **argv)
 /*
 	VideoCapture cap("stereoboard_database/Take16/%d.bmp");
 	output.open("stereoboard_database/Take16/result.csv");
-	edgeflow_parameters.stereo_shift = -5; // calibration data of that file
+	edgeflow_params.stereo_shift = -5; // calibration data of that file
 */
 
 	VideoCapture cap("stereoboard_database/Track3/%d.bmp");
   output.open("stereoboard_database/Track3/result.csv");
-  edgeflow_parameters.stereo_shift = 2;
+  edgeflow_params.stereo_shift = 2;
 
   Mat prev_image;
   char prev_image_file[255];
@@ -122,55 +118,44 @@ int main(int argc, const char **argv)
 		uint8_t *edgeflowArray;
 
 		//calculate edgeflow
-		edgeflow_total(stereocam_data, 0, image_buffer, &edgeflow_parameters, &edgeflow_results);
+		edgeflow_total(image_buffer, stereocam_data, 0);
 		std::vector<double> X, Y;
 		std::vector<double> Y1, Y2, Y3, Y4, Y5, Y6, Y7, Y8, Y9, prev_hist, curr_hist, right_hist, dist_hist;
 
-		double grad, y_int;
-    grad = edgeflow_results.edge_flow.scaled_div;
-    y_int = edgeflow_results.edge_flow.scaled_flow_x;
-
-    double global_grad = (double)edgeflow_results.edge_flow.div_x / 100.;
-    double global_y_int = (double)edgeflow_results.edge_flow.flow_x / 100.;
-
     printf("frame: %d\n", counter);
-    printf("pixelwise fit: %f %f\n", y_int, grad);
-    printf("global fit: %f %f %f\n", global_y_int, global_grad, (double)edgeflow_results.edge_flow.div_y * edgeflow_results.avg_dist / 100.);
-
-    printf("vel: %d %d %d %d\n", edgeflow_results.vel_x_pixelwise, edgeflow_results.vel_x_global, edgeflow_results.vel_z_pixelwise, edgeflow_results.vel_z_global);
-
+    printf("vel: %d %d %d\n", edgeflow_results.vel.x, edgeflow_results.vel.y, edgeflow_results.vel.z);
     printf("avg_disp %d avg_dist %d\n", edgeflow_results.avg_disp, edgeflow_results.avg_dist);
 
 		for(x=0; x < 128; x++)
 		{
 			X.push_back((double)x);
 
-			Y1.push_back((double)edgeflow_results.velocity_per_column[x]);
+			Y4.push_back((double)edgeflow_results.displacement.x[x]);
 			//Y7.push_back((double)edgeflow_results.velocity_per_column[x]*edgeflow_results.displacement.stereo[x]*100.);
-			Y2.push_back((double)(y_int + grad * (x-64)));
-			Y5.push_back((double)(edgeflow_results.edge_flow.scaled_flow_x1 + edgeflow_results.edge_flow.scaled_div1 * x));
+			Y2.push_back((double)(edgeflow_results.vel.x*100 + edgeflow_results.vel.z * (x-64)));
+			Y1.push_back((double)edgeflow_results.velocity_x[x]);
 
-			Y6.push_back((double)edgeflow_results.hist_match_quality_x[x]);
+			Y3.push_back((double)edgeflow_results.displacement.confidence_x[x]);
 
-			Y3.push_back((double)edgeflow_results.displacement.x[x] * 100.);
-			Y4.push_back((double)(global_y_int + global_grad * (x-64)));
 
-			prev_hist.push_back(edgeflow_results.edge_hist[edgeflow_results.previous_frame_x].x[x]);
-			curr_hist.push_back(edgeflow_results.edge_hist[(edgeflow_results.current_frame_nr - 1 + MAX_HORIZON) % MAX_HORIZON].x[x]);
-			right_hist.push_back(edgeflow_results.edge_hist_x_right[x]);
+			prev_hist.push_back((double)edgeflow_results.edge_hist[edgeflow_results.prev_frame_x].x[x]);
+			curr_hist.push_back((double)edgeflow_results.edge_hist[(edgeflow_results.current_frame_nr - 1 + MAX_HORIZON) % MAX_HORIZON].x[x]);
+			right_hist.push_back((double)edgeflow_results.edge_hist_right[x]);
 
-			dist_hist.push_back(edgeflow_results.stereo_distance_per_column[x]/100.);
+			dist_hist.push_back((double)edgeflow_results.displacement.stereo[x]);
 		}
 
 		for(y=0; y < 96; y++)
     {
 		  Y.push_back((double)y);
-		  Y7.push_back((double)edgeflow_results.displacement.y[y] * 100.);
-      Y8.push_back((double)(edgeflow_results.edge_flow.flow_y + edgeflow_results.edge_flow.div_y) * (y-48) / 100.);
+		  Y6.push_back((double)edgeflow_results.displacement.confidence_y[y]);
+		  //Y7.push_back((double)edgeflow_results.displacement.y[y]);
+		  Y7.push_back((double)edgeflow_results.velocity_y[y]);
+      Y8.push_back((double)(edgeflow_results.vel.y*100 + edgeflow_results.vel.z * (y-48)));
       //Y9.push_back((double)edgeflow_results.hist_match_quality_y[y]);
     }
 
-		g1.set_grid();
+/*		g1.set_grid();
 		g2.set_grid();
 		g3.set_grid();
 		g4.set_grid();
@@ -178,10 +163,10 @@ int main(int argc, const char **argv)
 
 		g1.plot_xy(X, Y1, "velocity_per_column");
 		g1.plot_xy(X, Y2, "weighted flow fit");
-		g1.plot_xy(X, Y5, "standard flow fit");
+		//g1.plot_xy(X, Y5, "standard flow fit");
 
-		g2.plot_xy(X, Y3, "X pixel displacement per column");
-		g2.plot_xy(X, Y4, "Flow fit");
+		g2.plot_xy(X, Y3, "confidence x");
+		g2.plot_xy(Y, Y6, "confidence y");
 
 		g3.plot_xy(Y, Y7, "Y pixel displacement per column");
     g3.plot_xy(Y, Y8, "Flow fit");
@@ -189,26 +174,23 @@ int main(int argc, const char **argv)
 		//g3.plot_xy(X, prev_hist, "prev_hist");
 		//g3.plot_xy(X, curr_hist, "curr_hist");
 
-		//g5.plot_xy(X, curr_hist, "left hist");
+		g4.plot_xy(X, Y4, "left hist");
 		//g5.plot_xy(X, right_hist, "right hist");
 
-		g5.plot_xy(X, dist_hist, "distance histogram");
-		g4.plot_xy(X, Y6, "hist weight");
+		g5.plot_xy(X, dist_hist, "disparity histogram");
 		getchar();
 
 		g1.reset_plot();
 		g2.reset_plot();
 		g3.reset_plot();
 		g4.reset_plot();
-		g5.reset_plot();
+		g5.reset_plot();*/
 
 		//Save data on output.cvs
 		//TODO: also enter groundtruth data
-		output << edgeflow_results.vel_x_pixelwise << "," << edgeflow_results.vel_z_pixelwise <<
-				", " << edgeflow_results.vel_x_global << "," << edgeflow_results.vel_y_global <<
-				"," << edgeflow_results.vel_z_global << "," << edgeflow_results.velocity_stereo_mean <<
+		output << edgeflow_results.vel.x << "," << edgeflow_results.vel.y << "," << edgeflow_results.vel.z <<
 				"," << edgeflow_results.vel_x_stereo_avoid_pixelwise << "," << edgeflow_results.vel_z_stereo_avoid_pixelwise
-				<< ", " << edgeflow_results.avg_dist << endl;
+				<< "," << edgeflow_results.avg_dist << endl;
 	}
 
 	output.close();

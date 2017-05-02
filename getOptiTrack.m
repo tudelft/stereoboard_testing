@@ -123,5 +123,3 @@ for i = 1:numel(index_frame)
     fprintf(fid,'%f %f\n', pitch(index_frame(i))*1000*pi/180, yaw(index_frame(i))*1000*pi/180);
 end
 fclose(fid);
-
-frequency = 1/mean(diff(t_frame))

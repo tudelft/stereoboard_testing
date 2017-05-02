@@ -15,6 +15,10 @@ LFLAGS        = $(shell pkg-config --libs opencv)
 LIBS          = $(SUBLIBS) -lrt -pthread -lopencv_core -lopencv_highgui -lopencv_imgproc
 DEL_FILE      = rm -f
 
+CV_PATH        = ../drone_vision/cv
+INC_PATH		= ../../common
+CXXFLAGS+=-I${CV_PATH} -I${INC_PATH}
+
 ####### Output directory
 
 OBJECTS_DIR   = ./
