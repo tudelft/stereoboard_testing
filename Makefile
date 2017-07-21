@@ -15,9 +15,9 @@ LFLAGS        = $(shell pkg-config --libs opencv)
 LIBS          = $(SUBLIBS) -lrt -pthread -lopencv_core -lopencv_highgui -lopencv_imgproc
 DEL_FILE      = rm -f
 
-CV_PATH        = ../drone_vision/cv
-INC_PATH		= ../../common
-CXXFLAGS+=-I${CV_PATH} -I${INC_PATH}
+CV_PATH		  = ../drone_vision/cv
+INC_PATH	  = -I../../common -I../../stereoboard
+CXXFLAGS	  +=-I${CV_PATH} ${INC_PATH} -DEDGEFLOW_USE_SNAPSHOT=true
 
 ####### Output directory
 
@@ -27,8 +27,10 @@ OBJECTS_DIR   = ./
 
 TARGET  = EL
 
-SOURCES =   main.cpp \
+SOURCES = $(wildcard ../../stereoboard/math/*.c)
+SOURCES +=   main.cpp \
             ../../stereoboard/edgeflow.c
+
 
 $(info $(SOURCES))
 

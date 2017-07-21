@@ -1,4 +1,4 @@
-function [cam_Vx_frame, cam_Vz_frame, yaw_frame, t_frame] = getOptiTrack(database_loc)
+function [cam_Vx_frame, cam_Vz_frame, yaw_frame, t_frame, cam_X_frame, cam_Y_frame, cam_Z_frame] = getOptiTrack(database_loc)
 
 format shortg
 % keyboard
@@ -66,14 +66,14 @@ yaw_rate = [diff(yaw)./diff(t);0];
 pitch_rate = [diff(pitch)./diff(t);0];
 
 cam_Vx = -Vx.*cos(yaw*pi/180)+Vz.*sin(yaw*pi/180);
-cam_Vz = Vz.*cos(yaw*pi/180)+Vx.*sin(yaw*pi/180);
+cam_Vz = -Vz.*cos(yaw*pi/180)+Vx.*sin(yaw*pi/180);
 
 cam_Vx_frame = cam_Vx(index_frame); % lateral velocity (positive ->)
 cam_Vy_frame = Vy(index_frame); % down positive
 cam_Vz_frame = cam_Vz(index_frame); % longitudinal velocity (positive is forward)
 
 cam_X = -X.*cos(yaw*pi/180)+Z.*sin(yaw*pi/180);
-cam_Z = Z.*cos(yaw*pi/180)+X.*sin(yaw*pi/180);
+cam_Z = -Z.*cos(yaw*pi/180)+X.*sin(yaw*pi/180);
 
 % cam_X_obst = X_obst.*cos(yaw*pi/180)-Z_obst.*sin(yaw*pi/180);
 % cam_Z_obst = -Z_obst.*cos(yaw*pi/180)-X_obst.*sin(yaw*pi/180);
@@ -82,6 +82,7 @@ cam_Z = Z.*cos(yaw*pi/180)+X.*sin(yaw*pi/180);
 % cam_Z_obst_frame = cam_Z_obst(index_frame);
 
 cam_X_frame = cam_X(index_frame);
+cam_Y_frame = Y(index_frame);
 cam_Z_frame = cam_Z(index_frame);
 yaw_frame = yaw(index_frame);
  
