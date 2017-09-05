@@ -14,11 +14,6 @@ using namespace std;
 using namespace cv;
 
 
-/*
-const int8_t FOVX = 104;   // 60deg = 1.04 rad
-const int8_t FOVY = 79;    // 45deg = 0.785 rad
- */
-
 #define FOVX 1.001819   // 57.4deg = 1.001819 rad
 #define FOVY 0.776672   // 44.5deg = 0.776672 rad
 
@@ -35,39 +30,69 @@ Gnuplot g5("lines");
 void plot_line_gnu(double A, double B, uint16_t size, Gnuplot *g, bool hold_on, string title);
 void plot_gnu(int32_t *array, uint16_t size, Gnuplot *g, bool hold_on, string title);
 
-int main()
+int main(int argc, char *argv[])
 {
-// SELECT WHICH DATABASE YOU WANT:
-//TODO: make this variables for the main function
+
+  //check if too many arguments are passed
+  if (argc != 3) {
+    cout << "Wrong amount of arguments!" << endl;
+    cout << "Usage: ./testing 'stereoboard_nr' 'take_nr'" << endl;
+    cout << "Example: ./testing 1 16" << endl;
+
+    return 0;
+  }
+  cout << "stereoboard " << argv[1] << " with take " << argv[2] << endl;
 
   string configuration_board = "forward_camera";
-  int number_stereoboard = 1;
-  int number_take = 16;	// 3
-  float time_inc = 1/7.; // 1/8
+  int number_stereoboard = atoi(argv[1]);
+  int number_take = atoi(argv[2]);
 
   uint32_t frame_time = 0;
 
   // Find Directories
   stringstream file_directory_images;
+  stringstream file_directory_timing;
   stringstream file_directory_calibration;
   stringstream file_directory_results;
 
   file_directory_images << "stereoboard_database/database_stereoboard_" << number_stereoboard << "/" <<
-                        configuration_board << "/take" << number_take << "/%1d.bmp";
+      configuration_board << "/take" << number_take << "/%1d.bmp";
+  file_directory_timing << "stereoboard_database/database_stereoboard_" << number_stereoboard << "/" <<
+      configuration_board << "/take" << number_take << "/timing.dat";
   file_directory_calibration << "stereoboard_database/database_stereoboard_" << number_stereoboard <<
-                             "/calibration_data.txt";
+      "/calibration_data.txt";
   file_directory_results << "stereoboard_database/database_stereoboard_" << number_stereoboard << "/" <<
-                         configuration_board << "/take" << number_take << "/result_stereo.csv";
-
+      configuration_board << "/take" << number_take << "/result_stereo.csv";
 
   //initialize for edgeflow
-  edgeflow_init(128, 94, 0);
+  edgeflow_init(128, 94, 0, NULL);
+
+
+  //Uncomment if you want to try an old version of the code
+  //edgeflow_init(128, 94, 0);
 
   //Open files needed for testing
   VideoCapture cap; cap.open(file_directory_images.str());    //image location
   ofstream output; output.open(file_directory_results.str());   // result file
   fstream calibration_file(file_directory_calibration.str(), ios_base::in);
   calibration_file >> edgeflow_params.stereo_shift; // calibration data of that file
+  fstream timing_file(file_directory_timing.str(), ios_base::in);
+
+  //Make vector with timing data
+  double num;
+  string line, temp_str_c1, temp_str_c2;
+  vector<double> timing;
+  while (getline(timing_file,line))
+  {
+    istringstream ss(line);
+    ss>>temp_str_c1; // read first column
+    ss>>temp_str_c2; // read second column
+    if(atof(temp_str_c2.c_str())==1.0) // If second column is not 1, then there is no accommodating image
+    {
+      num = (double)atof(temp_str_c1.c_str());
+      timing.push_back(num);
+    }
+  }
 
   //OPENCV structures to read out images
   Rect ROI_right(0, 0, 128, 94); //Note that in the database, image left and right is reverted!
@@ -82,11 +107,11 @@ int main()
   Mat prev_image;
   char prev_image_file[255];
 
-  if (!cap.isOpened()) return -1;
+  if (!cap.isOpened()) { return -1; }
 
   //start loop while images are read
   int counter = 0;
-  for(;;) {
+  for (;;) {
     counter++;
     cap >> image;
 
@@ -107,10 +132,9 @@ int main()
 
 
     // Put image values in array, just like in the stereoboard
-    int x, y, idx,idx2;
+    int x, y, idx, idx2;
     for (y = 0; y < image_left_gray.rows; y++) {
-      for (x = 0; x < image_left_gray.cols; x++)
-      {
+      for (x = 0; x < image_left_gray.cols; x++) {
         idx2 = image_left_gray.cols * y + x;
 
         image_buffer_left[idx2] = (uint8_t)image_left_gray.at<uchar>(y, x);
@@ -133,8 +157,12 @@ int main()
     uint8_t *edgeflowArray;
 
     //calculate edgeflow
-    frame_time += (uint32_t)(time_inc * 1e6);
-    edgeflow_total(image_buffer, frame_time, stereocam_data, 0);
+    frame_time = (uint32_t)(timing.at(counter) * 1e6);
+    edgeflow_total(image_buffer, frame_time);
+
+    //If you want to try an old version of the code
+    //edgeflow_total(image_buffer, frame_time,stereocam_data,0);
+
 
     // Plot results
 #if SHOW_PLOT
@@ -148,12 +176,12 @@ int main()
     plot_gnu(edgeflow.edge_hist[edgeflow.current_frame_nr].x, 128, &g2, false, "edgehist");
     plot_gnu(edgeflow.edge_hist_right, 128, &g2, true, "edgehist_right");
 
-    plot_gnu((int32_t*)edgeflow.disp.confidence_x, 128, &g3, false, "confidence x");
-    plot_gnu((int32_t*)edgeflow.disp.confidence_stereo, 128, &g3, true, "confidence stereo");
+    plot_gnu((int32_t *)edgeflow.disp.confidence_x, 128, &g3, false, "confidence x");
+    plot_gnu((int32_t *)edgeflow.disp.confidence_stereo, 128, &g3, true, "confidence stereo");
 
     plot_gnu(edgeflow.disp.y, 96, &g4, false, "displacement.y");
 
-    plot_gnu((int32_t*)edgeflow.disp.confidence_y, 96, &g5, false, "confidence y");
+    plot_gnu((int32_t *)edgeflow.disp.confidence_y, 96, &g5, false, "confidence y");
 
 #if !SHOW_IMAGE
     getchar();
@@ -161,9 +189,10 @@ int main()
 #endif
 
 #if SHOW_IMAGE
-    namedWindow("Display window", WINDOW_AUTOSIZE);  // Create a window for display.
+    namedWindow("Display window", WINDOW_OPENGL);  // Create a window for display.
     imshow("Display window", image_left_gray);
-    std::cin.get();//waitKey(0);
+    waitKey(1);
+    std::cin.get();
 #endif
 
     //calculate mean displacement
@@ -177,7 +206,7 @@ int main()
     int mean_disp_x = 100 * mean_disp_x_temp / 128;
     int mean_disp_stereo = 100 * mean_disp_stereo_temp / 128;
 
-    static struct vec3_t tot_dist = {0,0,0};
+    static struct vec3_t tot_dist = {0, 0, 0};
     tot_dist.x += edgeflow_snapshot.dist_traveled.x;
     tot_dist.y += edgeflow_snapshot.dist_traveled.y;
     tot_dist.z += edgeflow_snapshot.dist_traveled.z;
@@ -185,8 +214,8 @@ int main()
     //Save data on output.cvs
     //TODO: also enter groundtruth data
     output << edgeflow.vel.x << "," << edgeflow.vel.y << "," << edgeflow.vel.z <<
-	"," << edgeflow.vel_x_stereo_avoid_pixelwise << "," << edgeflow.vel_z_stereo_avoid_pixelwise
-	<< "," << edgeflow.avg_dist << "," << tot_dist.x << "," << tot_dist.y<< "," << tot_dist.z << endl;
+        "," << edgeflow.vel_x_stereo_avoid_pixelwise << "," << edgeflow.vel_z_stereo_avoid_pixelwise
+        << "," << edgeflow.avg_dist << "," << tot_dist.x << "," << tot_dist.y << "," << tot_dist.z << endl;
   }
 
   output.close();
@@ -231,7 +260,7 @@ void plot_line_gnu(double A, double B, uint16_t size, Gnuplot *g, bool hold_on, 
   int x;
   for (x = 0; x < size; x++) {
     X.push_back((double)x);
-    Y.push_back((double)(A * (x-size/2) + B));
+    Y.push_back((double)(A * (x - size / 2) + B));
   }
 
   if (hold_on == false) {
