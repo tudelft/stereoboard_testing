@@ -9,8 +9,8 @@ cam = textscan(cam_file,'%f,%f,%f,%f,%f,%f,%f,%f,%f');
 fclose(cam_file);
 
 vx = cam{1}/100.;
-vz = cam{2}/100.;
-vy = cam{4}/100.;
+vy = cam{2}/100.;
+vz = cam{3}/100.;
 
 %%
 [cam_Vx_frame, cam_Vz_frame, yaw_frame, t_frame] = getOptiTrack(dir);
@@ -23,4 +23,4 @@ subplot(3,1,2)
 plot(t_frame(1:end-1), vy); ylim([-1,1])
 subplot(3,1,3)
 plot(t_frame(1:end-1),vz); ylim([-1,1])
-hold on, plot(t_frame,-cam_Vz_frame);
+hold on, plot(t_frame,cam_Vz_frame);

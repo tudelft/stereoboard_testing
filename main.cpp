@@ -6,7 +6,8 @@
 #include <math.h>
 #include <fstream>
 #include <iostream>
-
+#include <argp.h>
+#include <ctype.h>
 #include "gnuplot_i.hpp"
 
 using namespace std;
@@ -16,6 +17,52 @@ using namespace cv;
 #include "stereoboard/edgeflow.h"
 #include "stereoboard/camera_type.h"
 
+const char *argp_program_version = "v0.1";
+const char *argp_program_bug_address = "https://github.com/tudelft/stereoboard_testing";
+static char doc[] = "This is used to test functions in the stereoboard project.";
+static char args_doc[] = "'database' 'take', e.g ./testing 1 3\n -d 'database' -t 'take' -i -p, e.g ./testing -d 1 -t 3 -i -p";
+static struct argp_option options[] = {
+  { "show_image", 'i', 0, 0, "Show image frame.",0},
+  { "show_plot", 'p', 0, 0, "Show output of edgeflow parameters.",0},
+  { "database", 'd', 1, 0, "Database number.",0},
+  { "take", 't', 1, 0, "Dataset number.",0},
+  { 0 }
+};
+
+struct args_t {
+  bool show_image, show_plot;
+  char *database;
+  char *take;
+};
+
+static error_t parse_opt(int key, char *arg, struct argp_state *state) {
+  struct args_t *args = (struct args_t *)state->input;
+  switch (key) {
+    case 'i': args->show_image = true; break;
+    case 'p': args->show_plot = true; break;
+    case 'd': args->database = arg; break;
+    case 't': args->take = arg; break;
+    case ARGP_KEY_ARG:
+      return 0;
+    case ARGP_KEY_END:
+      if (args->database == NULL || args->take == NULL)
+      {
+        cout<<"Please provide the database and take number"<<endl;
+        argp_usage(state);
+      }
+      break;
+    default:
+      return ARGP_ERR_UNKNOWN;
+  }
+  return 0;
+}
+
+static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, 0 };
+
+
+#define FOVX 1.001819   // 57.4deg = 1.001819 rad
+#define FOVY 0.776672   // 44.5deg = 0.776672 rad
+
 // initialize structures for plotting (can be multiple if you want)
 Gnuplot g1("lines");
 Gnuplot g2("lines");
@@ -23,29 +70,30 @@ Gnuplot g3("lines");
 Gnuplot g4("lines");
 Gnuplot g5("lines");
 
-#define SHOW_IMAGE false
-#define SHOW_PLOT false
 
 void plot_line_gnu(double A, double B, uint16_t size, Gnuplot *g, bool hold_on, string title);
 void plot_gnu(int32_t *array, uint16_t size, Gnuplot *g, bool hold_on, string title);
 
 int main(int argc, char *argv[])
 {
+  struct args_t args;
+
+  args.show_image = false;
+  args.show_plot = false;
+  args.database = NULL;
+  args.take = NULL;
 
   //check if too many arguments are passed
-  if (argc != 3) {
-    cout << "Wrong amount of arguments!" << endl;
-    cout << "Usage: ./testing 'stereoboard_nr' 'take_nr'" << endl;
-    cout << "Example: ./testing 1 16" << endl;
-
-    return 0;
+  if (argc == 3 && isdigit(argv[1][0]) && isdigit(argv[1][0])) {
+    args.database = argv[1];
+    args.take = argv[2];
+  } else {
+    argp_parse(&argp, argc, argv, 0, 0, &args);
   }
-  cout << "stereoboard " << argv[1] << " with take " << argv[2] << endl;
+
+  cout << "Evaluating stereoboard dataset " << args.database << " with take " << args.take << endl;
 
   string configuration_board = "forward_camera";
-  int number_stereoboard = atoi(argv[1]);
-  int number_take = atoi(argv[2]);
-
   uint32_t frame_time = 0;
 
   // Find Directories
@@ -54,17 +102,20 @@ int main(int argc, char *argv[])
   stringstream file_directory_calibration;
   stringstream file_directory_results;
 
-  file_directory_images << "stereoboard_database/database_stereoboard_" << number_stereoboard << "/" <<
-      configuration_board << "/take" << number_take << "/%1d.bmp";
-  file_directory_timing << "stereoboard_database/database_stereoboard_" << number_stereoboard << "/" <<
-      configuration_board << "/take" << number_take << "/timing.dat";
-  file_directory_calibration << "stereoboard_database/database_stereoboard_" << number_stereoboard <<
+  file_directory_images << "stereoboard_database/database_stereoboard_" << args.database << "/" <<
+      configuration_board << "/take" << args.take << "/%1d.bmp";
+  file_directory_timing << "stereoboard_database/database_stereoboard_" << args.database << "/" <<
+      configuration_board << "/take" << args.take << "/timing.dat";
+  file_directory_calibration << "stereoboard_database/database_stereoboard_" << args.database <<
       "/calibration_data.txt";
-  file_directory_results << "stereoboard_database/database_stereoboard_" << number_stereoboard << "/" <<
-      configuration_board << "/take" << number_take << "/result_stereo.csv";
+  file_directory_results << "stereoboard_database/database_stereoboard_" << args.database << "/" <<
+      configuration_board << "/take" << args.take << "/result_stereo.csv";
 
   //initialize for edgeflow
   edgeflow_init(128, 94, 0);
+
+  //Uncomment if you want to try an old version of the code
+  //edgeflow_init(128, 94, 0);
 
   //Open files needed for testing
   VideoCapture cap; cap.open(file_directory_images.str());    //image location
@@ -153,48 +204,48 @@ int main(int argc, char *argv[])
       }
     }
 
-    //dummyvalues
-    int16_t *stereocam_data;
-    uint8_t *edgeflowArray;
-
     //calculate edgeflow
     current_img.pprz_ts = (uint32_t)(timing.at(counter) * 1e6);
     edgeflow_total(&current_img, 0);
 
     //If you want to try an old version of the code
+    //int16_t *stereocam_data;
     //edgeflow_total(image_buffer, frame_time,stereocam_data,0);
 
 
     // Plot results
-#if SHOW_PLOT
-    printf("frame: %d\n", counter);
-    printf("vel: %d %d %d\n", edgeflow.vel.x, edgeflow.vel.y, edgeflow.vel.z);
-    printf("avg_disp %d avg_dist %d\n", edgeflow.avg_disp, edgeflow.avg_dist);
+    if(args.show_plot)
+    {
+      printf("frame: %d\n", counter);
+      printf("vel: %d %d %d\n", edgeflow.vel.x, edgeflow.vel.y, edgeflow.vel.z);
+      printf("avg_disp %d avg_dist %d\n", edgeflow.avg_disp, edgeflow.avg_dist);
 
-    plot_gnu(edgeflow.disp.stereo, 128, &g1, false, "displacement.stereo");
-    plot_gnu(edgeflow.disp.x, 128, &g1, true, "displacement.x");
+      plot_gnu(edgeflow.disp.stereo, 128, &g1, false, "displacement.stereo");
+      plot_gnu(edgeflow.disp.x, 128, &g1, true, "displacement.x");
 
-    plot_gnu(edgeflow.edge_hist[edgeflow.current_frame_nr].x, 128, &g2, false, "edgehist");
-    plot_gnu(edgeflow.edge_hist_right, 128, &g2, true, "edgehist_right");
+      plot_gnu(edgeflow.edge_hist[edgeflow.current_frame_nr].x, 128, &g2, false, "edgehist");
+      plot_gnu(edgeflow.edge_hist_right, 128, &g2, true, "edgehist_right");
 
-    plot_gnu((int32_t *)edgeflow.disp.confidence_x, 128, &g3, false, "confidence x");
-    plot_gnu((int32_t *)edgeflow.disp.confidence_stereo, 128, &g3, true, "confidence stereo");
+      plot_gnu((int32_t *)edgeflow.disp.confidence_x, 128, &g3, false, "confidence x");
+      plot_gnu((int32_t *)edgeflow.disp.confidence_stereo, 128, &g3, true, "confidence stereo");
 
-    plot_gnu(edgeflow.disp.y, 96, &g4, false, "displacement.y");
+      plot_gnu(edgeflow.disp.y, 96, &g4, false, "displacement.y");
 
-    plot_gnu((int32_t *)edgeflow.disp.confidence_y, 96, &g5, false, "confidence y");
+      plot_gnu((int32_t *)edgeflow.disp.confidence_y, 96, &g5, false, "confidence y");
 
-#if !SHOW_IMAGE
-    getchar();
-#endif
-#endif
+      if (!args.show_image)
+      {
+        std::cin.get();
+      }
+    }
 
-#if SHOW_IMAGE
-    namedWindow("Display window", WINDOW_OPENGL);  // Create a window for display.
-    imshow("Display window", image_left_gray);
-    waitKey(1);
-    std::cin.get();
-#endif
+    if (args.show_image)
+    {
+      namedWindow("Display window", WINDOW_OPENGL);  // Create a window for display.
+      imshow("Display window", image_left_gray);
+      waitKey(1);
+      std::cin.get();
+    }
 
     //calculate mean displacement
     int mean_disp_x_temp = 0;
