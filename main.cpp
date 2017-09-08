@@ -13,9 +13,7 @@
 using namespace std;
 using namespace cv;
 
-
-#define FOVX 1.001819   // 57.4deg = 1.001819 rad
-#define FOVY 0.776672   // 44.5deg = 0.776672 rad
+#include "camera_type.h"
 
 // initialize structures for plotting (can be multiple if you want)
 Gnuplot g1("lines");
@@ -65,11 +63,7 @@ int main(int argc, char *argv[])
       configuration_board << "/take" << number_take << "/result_stereo.csv";
 
   //initialize for edgeflow
-  edgeflow_init(128, 94, 0, NULL);
-
-
-  //Uncomment if you want to try an old version of the code
-  //edgeflow_init(128, 94, 0);
+  edgeflow_init(128, 94, 0);
 
   //Open files needed for testing
   VideoCapture cap; cap.open(file_directory_images.str());    //image location
@@ -106,6 +100,12 @@ int main(int argc, char *argv[])
 
   Mat prev_image;
   char prev_image_file[255];
+  struct image_t current_img;
+  current_img.buf = (void*)image_buffer;
+  current_img.w = IMAGE_WIDTH;
+  current_img.h = IMAGE_HEIGHT;
+  current_img.buf_size = 2*IMAGE_WIDTH*IMAGE_HEIGHT;
+  current_img.pprz_ts = 0;
 
   if (!cap.isOpened()) { return -1; }
 
@@ -157,8 +157,8 @@ int main(int argc, char *argv[])
     uint8_t *edgeflowArray;
 
     //calculate edgeflow
-    frame_time = (uint32_t)(timing.at(counter) * 1e6);
-    edgeflow_total(image_buffer, frame_time);
+    current_img.pprz_ts = (uint32_t)(timing.at(counter) * 1e6);
+    edgeflow_total(&current_img, 0);
 
     //If you want to try an old version of the code
     //edgeflow_total(image_buffer, frame_time,stereocam_data,0);

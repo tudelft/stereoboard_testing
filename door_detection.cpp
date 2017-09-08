@@ -77,6 +77,12 @@ int main(int argc, const char **argv)
     }
   }
 
+  float total_time = 0, total_gates = 0, total_q = 0;
+  clock_t start, end;
+
+  /* initialize random seed: */
+  srand (time(NULL));
+
 	//start loop while images are read
 	for(;;) {
     counter++;
@@ -168,7 +174,10 @@ int main(int argc, const char **argv)
     imshow( "before", grad_big );                   // Show our image inside it.
 
     memset(bin_cnt_snake, 0, sizeof(bin_cnt));  // reset the counters
+
+    start = clock();
     snake_gate_detection(&d, &gate, false, bin_cnt_snake, NULL, NULL);
+    end = clock();
 
     struct point_t roi[2];
     roi[0].x = gate.x-gate.sz; roi[0].y = gate.y-gate.sz_left;
@@ -202,6 +211,15 @@ int main(int argc, const char **argv)
       outputVideo.write(vid_frame);
     }
 
+    if (gate.q > 15)
+    {
+      printf("frame: %d %f\n", counter, ((double) (end - start)) * 1000 / CLOCKS_PER_SEC);
+      total_time += ((double) (end - start)) * 1000 / CLOCKS_PER_SEC;
+      total_gates++;
+      total_q += gate.q;
+      //getchar();
+    }
+
     /*if (gate.q > 15){
       char key = std::cin.get();
       printf("%d\n", key);
@@ -212,7 +230,8 @@ int main(int argc, const char **argv)
       }
 	  }*/
 	}
-	printf("%d positivly identified doors. %d negative\n", positive, negative);
-
+	printf("%f total gates, %d positivly identified doors. %d negative\n", total_gates, positive, negative);
+	if (total_gates)
+	  printf("Avergage computation time: %f ms, total q: %f\n", total_time / total_gates, total_q);
 	return 0;
 }
