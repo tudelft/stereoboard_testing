@@ -7,11 +7,11 @@
 #include <fstream>
 #include <iostream>
 //Include header file of stereoboard code
-#include "../../stereoboard/gate_detection.h"
-#include "../../stereoboard/main_parameters.h"
+#include "stereoboard/gate_detection.h"
+#include "stereoboard/main_parameters.h"
 #include "gnuplot_i.hpp"
 
-#include "image.h"
+#include "cv/image.h"
 
 using namespace std;
 using namespace cv;

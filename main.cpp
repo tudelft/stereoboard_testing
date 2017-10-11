@@ -6,14 +6,15 @@
 #include <math.h>
 #include <fstream>
 #include <iostream>
-//Include header file of stereoboard code
-#include "../../stereoboard/edgeflow.h"
+
 #include "gnuplot_i.hpp"
 
 using namespace std;
 using namespace cv;
 
-#include "camera_type.h"
+//Include header file of stereoboard code
+#include "stereoboard/edgeflow.h"
+#include "stereoboard/camera_type.h"
 
 // initialize structures for plotting (can be multiple if you want)
 Gnuplot g1("lines");
@@ -206,10 +207,17 @@ int main(int argc, char *argv[])
     int mean_disp_x = 100 * mean_disp_x_temp / 128;
     int mean_disp_stereo = 100 * mean_disp_stereo_temp / 128;
 
-    static struct vec3_t tot_dist = {0, 0, 0};
-    tot_dist.x += edgeflow_snapshot.dist_traveled.x;
-    tot_dist.y += edgeflow_snapshot.dist_traveled.y;
-    tot_dist.z += edgeflow_snapshot.dist_traveled.z;
+    static struct vec3_t tot_dist = {0, 0, 0},prev_dist = {0, 0, 0};
+    if (edgeflow_snapshot.new_keyframe)
+    {
+      prev_dist.x = tot_dist.x;
+      prev_dist.y = tot_dist.y;
+      prev_dist.z = tot_dist.z;
+    }
+
+    tot_dist.x = prev_dist.x + edgeflow_snapshot.dist.x;
+    tot_dist.y = prev_dist.y + edgeflow_snapshot.dist.y;
+    tot_dist.z = prev_dist.z + edgeflow_snapshot.dist.z;
 
     //Save data on output.cvs
     //TODO: also enter groundtruth data
