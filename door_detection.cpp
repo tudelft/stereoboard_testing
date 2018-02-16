@@ -11,7 +11,8 @@
 #include "stereoboard/main_parameters.h"
 #include "gnuplot_i.hpp"
 
-#include "image.h"
+#include "cv/image.h"
+#include "cv/filter.h"
 
 using namespace std;
 using namespace cv;

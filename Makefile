@@ -17,9 +17,9 @@ LFLAGS        = $(shell pkg-config --libs opencv)
 LIBS          = $(SUBLIBS) -lrt -pthread -lopencv_core -lopencv_highgui -lopencv_imgproc
 DEL_FILE      = rm -f
 
-CV_PATH		  = ../drone_vision/cv
+CV_PATH		  = ../drone_vision
 INC_PATH	  = -I../../ -I../../common -I../../stereoboard -I../../stereoboard/drivers/inc -I../../stereoboard/math
-CXXFLAGS	  +=-I${CV_PATH} ${INC_PATH}
+CXXFLAGS	  +=-I${CV_PATH} -I${CV_PATH}/cv ${INC_PATH}
 
 ####### Output directory
 
@@ -29,18 +29,19 @@ OBJECTS_DIR   = ./
 
 TARGET  = testing
 
-SOURCES = $(CV_PATH)/image.c $(wildcard ../../stereoboard/math/*.c)
+SOURCES = $(CV_PATH)/cv/image.c $(wildcard ../../stereoboard/math/*.c)
 
 ifeq ($(PROJECT), gate)
 	SOURCES += door_detection.cpp \
             ../../stereoboard/gate_detection.c \
-            ../../stereoboard/stereo_image.c
+            ../../stereoboard/stereo_image.c \
+            $(CV_PATH)/cv/filter.c
             
     DEFINES += -DGATE_DETECTION_GRAPHICS=1 -DGATE_ROTATE=1 -DGATE_SHAPE=6 -DGATE_NSAMPLES=1500
 else
     SOURCES += main.cpp \
             ../../stereoboard/edgeflow.c \
-            $(CV_PATH)/encoding/jpeg.c
+            $(CV_PATH)/cv/encoding/jpeg.c
 endif
 
 $(info $(SOURCES))
