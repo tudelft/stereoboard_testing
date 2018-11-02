@@ -11,14 +11,14 @@ CXX           = g++
 DEFINES	      = -DCOMPILE_ON_LINUX
 CFLAGS        = -pipe -g -Wall -W $(DEFINES) $(shell pkg-config --cflags opencv) -fpermissive
 CXXFLAGS      = -pipe -g -Wall -W $(DEFINES) -MMD -std=c++11 -fpermissive
-CXXFLAGS      += $(shell pkg-config --cflags opencv)
+#CXXFLAGS      += $(shell pkg-config --cflags opencv)
 LINK          = g++
-LFLAGS        = $(shell pkg-config --libs opencv)
-LIBS          = $(SUBLIBS) -lrt -pthread -lopencv_core -lopencv_highgui -lopencv_imgproc
+#LFLAGS        = $(shell pkg-config --libs opencv)
+LIBS          = $(SUBLIBS) -lrt -pthread -L../../../opencv/install/lib -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_video -lopencv_videoio -Wl,-rpath,${CURDIR}/../../../opencv/install/lib
 DEL_FILE      = rm -f
 
 CV_PATH		  = ../drone_vision
-INC_PATH	  = -I../../ -I../../common -I../../stereoboard -I../../stereoboard/drivers/inc -I../../stereoboard/math
+INC_PATH	  = -I../../ -I../../common -I../../stereoboard -I../../stereoboard/drivers/inc -I../../stereoboard/math -I../../../opencv/install/include
 CXXFLAGS	  +=-I${CV_PATH} -I${CV_PATH}/cv ${INC_PATH}
 
 ####### Output directory
@@ -32,12 +32,11 @@ TARGET  = testing
 SOURCES = $(CV_PATH)/cv/image.c $(wildcard ../../stereoboard/math/*.c)
 
 ifeq ($(PROJECT), gate)
-	SOURCES += door_detection.cpp \
+	SOURCES += gate_detection.cpp \
             ../../stereoboard/gate_detection.c \
-            ../../stereoboard/stereo_image.c \
-            $(CV_PATH)/cv/filter.c
+            ../../stereoboard/stereo_image.c
             
-    DEFINES += -DGATE_DETECTION_GRAPHICS=1 -DGATE_ROTATE=1 -DGATE_SHAPE=6 -DGATE_NSAMPLES=1500
+    DEFINES += -DGATE_DETECTION_GRAPHICS=1
 else
     SOURCES += main.cpp \
             ../../stereoboard/edgeflow.c \
@@ -77,7 +76,7 @@ first: all
 all: Makefile $(TARGET)
 
 $(TARGET):  $(OBJECTS)
-	$(LINK) $(LIBS) -o $(TARGET) $(OBJECTS) $(OBJCOMP) $(LFLAGS)
+	$(LINK) $(LFLAGS) -o $(TARGET) $(OBJECTS) $(OBJCOMP) $(LIBS)
 	{ test -n "$(DESTDIR)" && DESTDIR="$(DESTDIR)" || DESTDIR=.; } && test $$(gdb --version | sed -e 's,[^0-9]\+\([0-9]\)\.\([0-9]\).*,\1\2,;q') -gt 72 && gdb --nx --batch --quiet -ex 'set confirm off' -ex "save gdb-index $$DESTDIR" -ex quit '$(TARGET)' && test -f $(TARGET).gdb-index && objcopy --add-section '.gdb_index=$(TARGET).gdb-index' --set-section-flags '.gdb_index=readonly' '$(TARGET)' '$(TARGET)' && rm -f $(TARGET).gdb-index || true
 
 debug:
