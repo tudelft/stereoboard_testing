@@ -15,6 +15,9 @@
 #include "cv/image.h"
 #include "cv/image.h"
 
+#include "camera_type.h"
+#include "line_fit.h"
+
 using namespace std;
 using namespace cv;
 
@@ -62,24 +65,26 @@ int main(int argc, const char **argv)
 {
   initialise_gate_settings();
 
-	//structures for images
-	Mat image;
-	uint8_t image_buffer[IMAGE_WIDTH * IMAGE_HEIGHT * 2] = {0};
+  //structures for images
+  Mat image;
+  uint8_t image_buffer[IMAGE_WIDTH * IMAGE_HEIGHT * 2] = {0};
 
-	Mat output(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC3, Scalar(0,0,0));
-	Mat output_big(480, 640, CV_8UC3, Scalar(0,0,0));
+  Mat output(IMAGE_HEIGHT, IMAGE_WIDTH, CV_8UC3, Scalar(0,0,0));
+  Mat output_big(480, 640, CV_8UC3, Scalar(0,0,0));
 
-	// open video capture
-	VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/color_gates/color%1d.png");
+  // open video capture
+  VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/test2_raw_images/color%1d.png");
+  //VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/test3_raw_images_flapping/%03d.png");
+  //VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/color_gates/color%1d.png");
 
-	if (!cap.isOpened()) {
-	  printf("Couldn't open images\n");
-	  return -1;
-	}
+  if (!cap.isOpened()) {
+    printf("Couldn't open images\n");
+    return -1;
+  }
 
-	int counter = 0;
+  int counter = 0;
 
-	cap >> image;
+  cap >> image;
   counter++;
 
   VideoWriter outputVideo;                                        // Open the output
@@ -136,14 +141,71 @@ int main(int argc, const char **argv)
     gate_gray_detector(&input, & output);
 #else
     input.type = IMAGE_YUV422;
-    //gate_color_detector(&input, &output);
-    struct point_t centroid;
-    //centroid = yuv_colorfilt_centroid(&input, &input, 54,157, 99,127, 81,123, 20, 0);
-    struct roi_t segments[128];
-    centroid = color_obstacle_detection(&input, &input, 54,157, 99,127, 81,123, 10, 0, segments, 128);
-    printf("centroid (%d %d)\n", centroid.x,centroid.y);
+    uint8_t test = 0;
+    if (test == 0){
+      gate_color_detector(&input, &output);
+      printf("%d %d %d\n", bin_cnt_snake[0], bin_cnt_snake[1], bin_cnt_snake[2]);
+
+    } else if (test == 1) {
+      struct roi_t segments[128];
+      uint16_t num_found  = color_obstacle_detection(&input, &input, 54,157, 99,127, 81,123, 10, 0, segments, 128);
+
+    } else if (test == 2) {
+      float min_dist_btween_obstacles = 0.5f;  // m
+      float flight_alt = 1.5;  // m
+      float cam_angle = 0.785; //45 deg up from vertical
+      uint16_t width_min = (uint16_t)ceilf(input.w*min_dist_btween_obstacles/(flight_alt*sinf(cam_angle+FOVY/2.f)*2.f*sinf(FOVX/2.f)));
+      uint16_t width_max = (uint16_t)ceilf(input.w*min_dist_btween_obstacles/(flight_alt*sinf(cam_angle-FOVY/2.f)*2.f*sinf(FOVX/2.f)));
+      printf("%d %d\n", width_min, width_max);
+      struct point_t obstacle = color_obstacle_detection_with_keepout(&input, &input, 54,157, 99,127, 81,123, 10, 0, width_min, width_max);
+      printf("centroid (%d %d) %f\n", obstacle.x, obstacle.y,flight_alt*cosf((((float)(obstacle.y - IMAGE_HEIGHT/2) * FOVY / IMAGE_HEIGHT) + cam_angle)));
+
+    } else if (test == 3) {
+      struct point_t points[256];
+      uint32_t i = 0, j = 0;
+      uint8_t * buf = (uint8_t*)input.buf;
+      uint32_t x_sum = 0, y_sum = 0;
+      while ( i < 1024 && j < 256){
+        uint16_t x = rand() % input.w;
+        uint16_t y = rand() % input.h;
+        if (buf[(x + input.w * y ) * 2 + 1] > 180){
+          points[j].x = x;
+          points[j].y = y;
+          x_sum += x;
+          y_sum += y;
+          j++;
+        }
+        i++;
+      }
+
+      int32_t slope, intercept;
+      uint32_t fit = line_fit_2D(points, j, 100, &slope, &intercept);
+
+      struct point_t centroid = yuv_colorfilt_centroid(&input,NULL,180,255,0,255,0,255, 20, 0);
+
+      image_show_points(&input, points, j);
+      struct point_t start = {0, intercept/100}, end = {input.w - 1, (slope*(input.w -1) + intercept)/100};
+      image_draw_line(&input, &start, &end, yuv_red);
+
+      if (j)
+        printf("%d %d %d, (%d %d) (%d %d)\n", slope, intercept, fit, x_sum/j, y_sum/j, centroid.x, centroid.y);
+    }
+
     yuv4222mat(&input,&output);
-    getchar();
+
+/*    uint8_t sobel_buffer[IMAGE_WIDTH * IMAGE_HEIGHT * 2] = {0};
+    struct image_t sobel;
+    sobel.buf = sobel_buffer;
+    sobel.w = IMAGE_WIDTH;
+    sobel.h = IMAGE_HEIGHT;
+    sobel.buf_size = IMAGE_WIDTH*IMAGE_HEIGHT*2;
+    sobel.type = IMAGE_YUV422;
+
+    image_2d_sobel(&input, &sobel);
+    yuv4222mat(&sobel,&output);*/
+
+
+
 #endif
 
     resize(output, output_big, Size(), (float)output_big.cols/output.cols, (float)output_big.rows/output.rows);
@@ -155,7 +217,7 @@ int main(int argc, const char **argv)
     if (make_movie){
       // encode the frame into the videofile stream
       outputVideo.write(output_big);
-    } else if (gate.q > 30) {
+    } else if (1){//gate.q > 30) {
       printf("frame: %d %f ms\n", counter, ((double) (t_end - t_start)) * 1000 / CLOCKS_PER_SEC);
       total_time += ((double) (t_end - t_start)) * 1000 / CLOCKS_PER_SEC;
       total_gates++;
@@ -202,20 +264,31 @@ void mat2yuv422(Mat* image, uint8_t* image_buffer)
 void yuv4222mat(struct image_t* image, Mat* output)
 {
   uint32_t idx = 0;
-  for (int y = 0; y < image->h; y++) {
-    for (int x = 0; x < image->w; x++) {
-      output->at<Vec3b>(y, x)[0] = ((uint8_t*)image->buf)[idx+1];
-      if (idx % 4 == 0){
-        output->at<Vec3b>(y, x)[1] = ((uint8_t*)image->buf)[idx];
-        output->at<Vec3b>(y, x)[2] = ((uint8_t*)image->buf)[idx+2];
-      } else {
-        output->at<Vec3b>(y, x)[1] = ((uint8_t*)image->buf)[idx+2];
-        output->at<Vec3b>(y, x)[2] = ((uint8_t*)image->buf)[idx];
+  if (image->type == IMAGE_YUV422){
+    for (int y = 0; y < image->h; y++) {
+      for (int x = 0; x < image->w; x++) {
+        output->at<Vec3b>(y, x)[0] = ((uint8_t*)image->buf)[idx+1];
+        if (idx % 4 == 0){
+          output->at<Vec3b>(y, x)[1] = ((uint8_t*)image->buf)[idx];
+          output->at<Vec3b>(y, x)[2] = ((uint8_t*)image->buf)[idx+2];
+        } else {
+          output->at<Vec3b>(y, x)[1] = ((uint8_t*)image->buf)[idx+2];
+          output->at<Vec3b>(y, x)[2] = ((uint8_t*)image->buf)[idx];
+        }
+        idx += 2;
       }
-      idx += 2;
     }
+    cvtColor(*output, *output, COLOR_YUV2BGR);
+  } else if (image->type == IMAGE_GRAYSCALE){
+    for (int y = 0; y < image->h; y++) {
+      for (int x = 0; x < image->w; x++) {
+        output->at<uchar>(y, x) = ((uint8_t*)image->buf)[idx];
+        idx++;
+      }
+    }
+    cvtColor(*output, *output, COLOR_GRAY2BGR);
   }
-  cvtColor(*output, *output, COLOR_YUV2BGR);
+
 }
 
 void generate_mux_image(Mat* image_l, Mat* image_r, uint8_t* image_buffer_left, uint8_t* image_buffer_right, uint8_t* image_buffer)
@@ -263,8 +336,9 @@ void generate_mux_image(Mat* image_l, Mat* image_r, uint8_t* image_buffer_left, 
 }
 
 void gate_color_detector(struct image_t* input, Mat* output){
+  memset(bin_cnt_snake, 0, sizeof(bin_cnt));  // reset the counters
   t_start = clock();
-  snake_gate_detection(input, &gate, false, NULL, NULL, NULL);
+  snake_gate_detection(input, &gate, false, bin_cnt_snake, NULL, NULL);
   t_end = clock();
 
   yuv4222mat(input, output);
