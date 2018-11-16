@@ -61,8 +61,53 @@ void initialise_gate_settings(void)
 #endif
 }
 
+void test_line_fit(void){
+  struct point_t points[128];
+  float r2;
+  for (uint16_t i = 0; i < 128; i++){
+    points[i].x = i;
+    points[i].y = 0.5 * points[i].x + 5; // + rand() % 2
+    points[i].y = 0.1 * points[i].x * points[i].x + 0.5 * points[i].x + 5; // + rand() % 2
+    points[i].y = i; // + rand() % 2
+    points[i].x = 0.5 * points[i].y + 5;
+  }
+
+  float coefficient[3];
+  int32_t coefficient_i[3];
+  struct timeval tv_start, tv_end;
+  int32_t slope, intercept;
+  gettimeofday(&tv_start, NULL);
+  for (uint32_t i; i < 100000; i++){
+    r2 = line_fit_i(points, 128, 100, coefficient_i, 1);
+  }
+  gettimeofday(&tv_end, NULL);
+
+  printf("took %f s, %d %d, %f\n", tv_end.tv_sec + (float)tv_end.tv_usec/1e6 - tv_start.tv_sec - (float)tv_start.tv_usec/1e6,
+      slope, intercept, r2);
+
+  gettimeofday(&tv_start, NULL);
+  for (uint32_t i; i < 100000; i++){
+    r2 = line_fit_f(points, 128, coefficient, 1);
+  }
+  gettimeofday(&tv_end, NULL);
+  printf("took %f s, %f %f, %f\n", tv_end.tv_sec + (float)tv_end.tv_usec/1e6 - tv_start.tv_sec - (float)tv_start.tv_usec/1e6,
+      coefficient[1], coefficient[0], r2);
+
+  gettimeofday(&tv_start, NULL);
+  for (uint32_t i; i < 100000; i++){
+    r2 = line_fit_second_order_f(points, 128, coefficient, 1);
+  }
+  gettimeofday(&tv_end, NULL);
+  printf("took %f s, %f %f %f, %f\n", tv_end.tv_sec + (float)tv_end.tv_usec/1e6 - tv_start.tv_sec - (float)tv_start.tv_usec/1e6,
+      coefficient[2], coefficient[1], coefficient[0], r2);
+}
+
+
 int main(int argc, const char **argv)
 {
+  //test_line_fit();
+  //return;
+
   initialise_gate_settings();
 
   //structures for images
@@ -73,9 +118,10 @@ int main(int argc, const char **argv)
   Mat output_big(480, 640, CV_8UC3, Scalar(0,0,0));
 
   // open video capture
-  VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/test2_raw_images/color%1d.png");
+  //VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/test2_raw_images/color%1d.png");
   //VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/test3_raw_images_flapping/%03d.png");
   //VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/color_gates/color%1d.png");
+  VideoCapture cap("/media/kirk/EUROGNC2013/white_thick_line_green_obstacles/color%1d.png");
 
   if (!cap.isOpened()) {
     printf("Couldn't open images\n");
@@ -141,7 +187,7 @@ int main(int argc, const char **argv)
     gate_gray_detector(&input, & output);
 #else
     input.type = IMAGE_YUV422;
-    uint8_t test = 0;
+    uint8_t test = 3;
     if (test == 0){
       gate_color_detector(&input, &output);
       printf("%d %d %d\n", bin_cnt_snake[0], bin_cnt_snake[1], bin_cnt_snake[2]);
@@ -149,7 +195,6 @@ int main(int argc, const char **argv)
     } else if (test == 1) {
       struct roi_t segments[128];
       uint16_t num_found  = color_obstacle_detection(&input, &input, 54,157, 99,127, 81,123, 10, 0, segments, 128);
-
     } else if (test == 2) {
       float min_dist_btween_obstacles = 0.5f;  // m
       float flight_alt = 1.5;  // m
@@ -163,12 +208,12 @@ int main(int argc, const char **argv)
     } else if (test == 3) {
       struct point_t points[256];
       uint32_t i = 0, j = 0;
-      uint8_t * buf = (uint8_t*)input.buf;
+      uint8_t *buf = (uint8_t*)input.buf;
       uint32_t x_sum = 0, y_sum = 0;
-      while ( i < 1024 && j < 256){
+      while (i < 1024 && j < 256){
         uint16_t x = rand() % input.w;
         uint16_t y = rand() % input.h;
-        if (buf[(x + input.w * y ) * 2 + 1] > 180){
+        if (buf[(x + input.w * y ) * 2 + 1] > 130){
           points[j].x = x;
           points[j].y = y;
           x_sum += x;
@@ -178,17 +223,39 @@ int main(int argc, const char **argv)
         i++;
       }
 
-      int32_t slope, intercept;
-      uint32_t fit = line_fit_2D(points, j, 100, &slope, &intercept);
+      if (j){
+        float coefficients[3];
+        uint8_t dir = 1;
+        float r2 = line_fit_second_order_f(points, j, coefficients, dir);
 
-      struct point_t centroid = yuv_colorfilt_centroid(&input,NULL,180,255,0,255,0,255, 20, 0);
+        struct point_t centroid = yuv_colorfilt_centroid(&input,NULL,180,255,0,255,0,255, 20, 0);
 
-      image_show_points(&input, points, j);
-      struct point_t start = {0, intercept/100}, end = {input.w - 1, (slope*(input.w -1) + intercept)/100};
-      image_draw_line(&input, &start, &end, yuv_red);
+        image_show_points(&input, points, j);
 
-      if (j)
-        printf("%d %d %d, (%d %d) (%d %d)\n", slope, intercept, fit, x_sum/j, y_sum/j, centroid.x, centroid.y);
+        struct point_t line[128];
+        uint32_t k = 0;
+        if (dir){
+          for (uint32_t y = 0; y < 96; y++){
+            uint32_t x = (coefficients[2] * y + coefficients[1]) * y + coefficients[0];
+            if (x > 0 && x < 128){
+              line[k].x = x;
+              line[k].y = y;
+              k++;
+            }
+          }
+        } else {
+          for (uint32_t x = 0; x < 128; x++){
+            uint32_t y = (coefficients[2] * x + coefficients[1]) * x + coefficients[0];
+            if (y > 0 && y < 96){
+              line[k].x = x;
+              line[k].y = y;
+              k++;
+            }
+          }
+        }
+        image_show_points_color(&input, line, k, yuv_red);
+        printf("%f %f %f %f, (%d %d) (%d %d)\n", coefficients[0], coefficients[1], coefficients[2], r2, x_sum/j, y_sum/j, centroid.x, centroid.y);
+      }
     }
 
     yuv4222mat(&input,&output);
