@@ -17,6 +17,7 @@
 
 #include "camera_type.h"
 #include "line_fit.h"
+#include "stereo_math.h"
 
 using namespace std;
 using namespace cv;
@@ -56,8 +57,10 @@ void initialise_gate_settings(void)
 #elif IMAGE_TYPE == GRAY
   gate_set_intensity(5, 108); // nus meeting room
 #else
-  //gate_set_color(30, 190, 90, 140, 160, 255); // red
-  gate_set_color(54,157,99,127,81,123);
+  //gate_set_color(30, 190, 90, 140, 160, 255, COLOR_SPACE_YUV); // red
+  //gate_set_color(54,157,99,127,81,123, COLOR_SPACE_YUV); // green
+  gate_set_color(50, 120, 60, 255, 60, 255, COLOR_SPACE_HSV); // green hsv
+  //gate_set_color(160,255,75,125,129,157, COLOR_SPACE_YUV); // yellow
 #endif
 }
 
@@ -118,10 +121,11 @@ int main(int argc, const char **argv)
   Mat output_big(480, 640, CV_8UC3, Scalar(0,0,0));
 
   // open video capture
-  //VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/test2_raw_images/color%1d.png");
+//  VideoCapture cap("/media/kirk/EUROGNC2013//test2_raw_images/color%1d.png");
   //VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/test3_raw_images_flapping/%03d.png");
   //VideoCapture cap("/home/kirk/mavlab/stereoboard/ext/stereoboard_testing/stereoboard_database/color_gates/color%1d.png");
-  VideoCapture cap("/media/kirk/EUROGNC2013/white_thick_line_green_obstacles/color%1d.png");
+  //VideoCapture cap("/media/kirk/EUROGNC2013/white_thick_line_green_obstacles/color%1d.png");
+  VideoCapture cap("/media/kirk/EUROGNC2013/imav_2018_dataset_on_course/color%1d.png");
 
   if (!cap.isOpened()) {
     printf("Couldn't open images\n");
@@ -160,6 +164,8 @@ int main(int argc, const char **argv)
 		  printf("empty image\n");
 			break;
 		}
+		if(counter < 530)
+		  continue;
 
 		// Crop out the separate left and right images
 /*    if (image.channels() == 3) {
@@ -187,11 +193,17 @@ int main(int argc, const char **argv)
     gate_gray_detector(&input, & output);
 #else
     input.type = IMAGE_YUV422;
-    uint8_t test = 3;
+    uint8_t test = 4;
     if (test == 0){
+      //struct timeval tv_start, tv_end;
+      //gettimeofday(&tv_start, NULL);
+      //for (int k = 0; k < 500; k ++)
       gate_color_detector(&input, &output);
-      printf("%d %d %d\n", bin_cnt_snake[0], bin_cnt_snake[1], bin_cnt_snake[2]);
+      //gettimeofday(&tv_end, NULL);
 
+      //printf("took %f s\n", tv_end.tv_sec + (float)tv_end.tv_usec/1e6 - tv_start.tv_sec - (float)tv_start.tv_usec/1e6);
+
+      printf("%d %d %d\n", bin_cnt_snake[0], bin_cnt_snake[1], bin_cnt_snake[2]);
     } else if (test == 1) {
       struct roi_t segments[128];
       uint16_t num_found  = color_obstacle_detection(&input, &input, 54,157, 99,127, 81,123, 10, 0, segments, 128);
@@ -213,7 +225,7 @@ int main(int argc, const char **argv)
       while (i < 1024 && j < 256){
         uint16_t x = rand() % input.w;
         uint16_t y = rand() % input.h;
-        if (buf[(x + input.w * y ) * 2 + 1] > 130){
+        if (buf[(x + input.w * y ) * 2 + 1] > 210){
           points[j].x = x;
           points[j].y = y;
           x_sum += x;
@@ -256,21 +268,60 @@ int main(int argc, const char **argv)
         image_show_points_color(&input, line, k, yuv_red);
         printf("%f %f %f %f, (%d %d) (%d %d)\n", coefficients[0], coefficients[1], coefficients[2], r2, x_sum/j, y_sum/j, centroid.x, centroid.y);
       }
+    } else if (test == 4){
+      static float hoop_distances[5] = {0., 2.73, 5.33, 9.03, 11.11};
+      static float hoop_diameters[5] = {1.3, 1.2, 0.93, 0.74, 0.48};
+      static float x_loc = -3.;
+
+      if (counter == 560 || counter == 600 || counter == 635)
+       x_loc += 2.5f;
+
+      gate_color_detector(&input, &output);
+      if (gate.q > 14){
+        float gate_ang = pix2angle(gate.sz, 0);
+        float min_error = 100.f;
+        uint16_t min_idx = 0;
+        for (int32_t i = 0; i < 5; i++){
+          float dis_obs = hoop_distances[i] - hoop_diameters[i]/(2*sinf(gate_ang));
+          float obs_error = x_loc - dis_obs;
+          if (fabsf(obs_error) < min_error){
+            min_error = fabsf(obs_error);
+            min_idx = i;
+          }
+          printf("%f %f %f\n", dis_obs, x_loc, obs_error);
+        }
+        if (min_error < 1.5f){
+          x_loc += ((hoop_distances[min_idx] - hoop_diameters[min_idx]/(2*sinf(gate_ang))) - x_loc)/4.f;
+          printf("%d, Likely gate %d, error %f, distance %f\n", gate.q, min_idx, min_error, x_loc);
+        }
+      }
+    } else if (test == 5){
+      // window
+      static float window_width = 0.5f;
+      static float distance = 2.f;
+      gate_color_detector(&input, &output);
+      if (gate.q > 14){
+        float gate_ang = pix2angle(gate.sz, 0);
+        float dist_obs = window_width/(2*sinf(gate_ang));
+        float alpha = 0.1f;
+        distance = distance*(1-alpha) + (dist_obs - distance)*alpha;
+        printf("obs %f, est %f\n", dist_obs, distance);
+      }
+    } else if (test == 6){
+      uint8_t sobel_buffer[IMAGE_WIDTH * IMAGE_HEIGHT * 2] = {0};
+      struct image_t sobel;
+      sobel.buf = sobel_buffer;
+      sobel.w = IMAGE_WIDTH;
+      sobel.h = IMAGE_HEIGHT;
+      sobel.buf_size = IMAGE_WIDTH*IMAGE_HEIGHT*2;
+      sobel.type = IMAGE_YUV422;
+
+      //image_2d_sobel(&input, &sobel);
+      image_2d_sobel2(&input, &sobel);
+      memcpy(input.buf, sobel.buf, input.buf_size);
     }
 
-    yuv4222mat(&input,&output);
-
-/*    uint8_t sobel_buffer[IMAGE_WIDTH * IMAGE_HEIGHT * 2] = {0};
-    struct image_t sobel;
-    sobel.buf = sobel_buffer;
-    sobel.w = IMAGE_WIDTH;
-    sobel.h = IMAGE_HEIGHT;
-    sobel.buf_size = IMAGE_WIDTH*IMAGE_HEIGHT*2;
-    sobel.type = IMAGE_YUV422;
-
-    image_2d_sobel(&input, &sobel);
-    yuv4222mat(&sobel,&output);*/
-
+    yuv4222mat(&input, &output);
 
 
 #endif

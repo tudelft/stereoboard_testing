@@ -35,8 +35,10 @@ ifeq ($(PROJECT), gate)
 	SOURCES += gate_detection.cpp \
             ../../stereoboard/gate_detection.c \
             ../../stereoboard/stereo_image.c
-            
-    DEFINES += -DGATE_DETECTION_GRAPHICS=1 -DGATE_ENFORCE_ASPECT=1 -DGATE_MUST_BE_IN_HOLLOW=0
+
+    DEFINES += -DGATE_NSAMPLES=1500
+    #DEFINES += -DGATE_DETECTION_GRAPHICS=1 -DGATE_SHAPE=3 -DGATE_MUST_BE_IN_FRAME=0
+    DEFINES += -DGATE_DETECTION_GRAPHICS=1 -DGATE_MUST_BE_IN_HOLLOW=0 #-DGATE_ENFORCE_ASPECT=1
 else
     SOURCES += main.cpp \
             ../../stereoboard/edgeflow.c \
